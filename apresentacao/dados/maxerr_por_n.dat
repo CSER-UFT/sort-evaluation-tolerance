@@ -1,0 +1,4 @@
+n quicksort mergesort shellsort heapsort
+10000 2.09 2.0 2.0 2.0
+100000 3.0 3.91 3.73 3.55
+1000000 3.0 5.36 6.0 5.55

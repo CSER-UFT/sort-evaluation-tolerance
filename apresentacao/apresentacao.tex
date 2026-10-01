@@ -1,0 +1,412 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usepackage[brazilian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+
+\usetheme{UFT}
+
+\colorlet{cquick}{uftazul}
+\colorlet{cmerge}{uftverde}
+\colorlet{cshell}{uftamarelo!85!black}
+\colorlet{cheap}{uftcinza}
+\pgfplotsset{
+  uft/.style={
+    width=\linewidth, height=0.62\linewidth,
+    grid=major, grid style={uftcinza!25},
+    axis line style={uftcinza}, tick style={uftcinza},
+    legend style={draw=none, fill=none, font=\scriptsize},
+    label style={font=\small}, tick label style={font=\scriptsize},
+    every axis plot/.append style={thick, mark size=2pt},
+  },
+}
+
+\lstset{
+  language=C, basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{uftazul}\bfseries, commentstyle=\color{uftverde},
+  numbers=none, frame=single, rulecolor=\color{uftcinza!50},
+  backgroundcolor=\color{uftazul!4}, columns=fullflexible,
+}
+
+\title[Comparador Impreciso]{Ordenação com Comparador Impreciso}
+\subtitle{Acúmulo de erro em quatro algoritmos de ordenação}
+\author[Rafael Soares]{Rafael Soares}
+\advisor{Prof. Tiago Almeida}
+\institute[UFT]{Universidade Federal do Tocantins}
+\date{}
+
+\begin{document}
+
+\begin{frame}[plain,noframenumbering]
+  \titlepage
+\end{frame}
+
+\begin{frame}{Sumário}
+  \tableofcontents
+\end{frame}
+
+\section{Contexto}
+
+\begin{frame}{Duas formas de imprecisão na ordenação}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Ajtai et al.: comparador impreciso}
+        \begin{itemize}
+          \item A \alert{comparação} falha quando $|a-b| \le \delta$
+          \item Nessa zona cega, a resposta é arbitrária
+          \item Pergunta: quão longe da ordem correta o resultado pode ficar?
+          \item Trabalho teórico, sem medições
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Chen et al.: memória aproximada}
+        \begin{itemize}
+          \item Os \alert{dados} mudam sozinhos na memória (PCM aproximada)
+          \item O comparador é exato; o valor lido é que está errado
+          \item Métrica \emph{Rem}: quantos elementos remover para o resto ficar ordenado
+          \item Somente simulação, sem hardware real
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.8em}
+  \begin{center}
+    Este trabalho usa o \alert{modelo do Ajtai} e o \alert{mede}, como o Chen faz com o dele.
+  \end{center}
+\end{frame}
+
+\begin{frame}{Ajtai et al.: os erros se acumulam}
+  \begin{itemize}
+    \item Exemplo do artigo: \textbf{bubble sort} sobre uma lista invertida em que vizinhos diferem exatamente $\delta$
+    \item Toda comparação cai na zona cega, então nenhuma troca acontece
+    \item A saída é a lista invertida: o erro total é muito maior que $\delta$
+  \end{itemize}
+  \vspace{0.6em}
+  \begin{alertblock}{Pergunta central}
+    Para um algoritmo real, o erro da saída fica limitado a alguns $\delta$
+    ou cresce com o tamanho da entrada?
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Chen et al.: algoritmos reagem de forma diferente}
+  \begin{columns}[c]
+    \begin{column}{0.5\textwidth}
+      Mesmo ponto de operação da memória aproximada:
+      \vspace{0.4em}
+      \begin{center}
+        \begin{tabular}{lr}
+          \toprule
+          Algoritmo & Desordem \\
+          \midrule
+          Quicksort & $< 2\%$ \\
+          Radix sort (LSD) & $\approx 1\%$ \\
+          Mergesort & $\approx 55\%$ \\
+          \bottomrule
+        \end{tabular}
+      \end{center}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{itemize}
+        \item \textbf{Mergesort:} cada fusão envolve mais elementos, e o erro se propaga até a última
+        \item \textbf{Quicksort:} o particionamento confina o erro a subproblemas menores
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{0.6em}
+  \begin{center}
+    O mesmo padrão aparece com comparador impreciso?
+  \end{center}
+\end{frame}
+
+\section{Metodologia}
+
+\begin{frame}[fragile]{O comparador com tolerância $\delta$}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+\begin{lstlisting}
+static inline int cmp_tol(int a, int b) {
+    long diff = (long) a - (long) b;
+    if (diff <= tol_delta && diff >= -tol_delta)
+        return 0;   /* zona cega */
+    return (diff < 0) ? -1 : 1;
+}
+\end{lstlisting}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \begin{itemize}
+        \item Todas as comparações entre elementos passam por \texttt{cmp\_tol}
+        \item Retorno $0$: o algoritmo \alert{não troca} os elementos
+        \item $\delta$ lido da variável de ambiente \texttt{SORT\_DELTA}
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{0.6em}
+  \begin{exampleblock}{O algoritmo não conhece $\delta$}
+    Como no modelo do Ajtai, $\delta$ é propriedade do comparador.
+    O algoritmo só pergunta e recebe $-1$, $0$ ou $1$.
+  \end{exampleblock}
+\end{frame}
+
+\begin{frame}{Desenho do experimento}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{itemize}
+        \item \textbf{Algoritmos:} quicksort (dual pivot), mergesort (bottom-up), shellsort (Knuth), heapsort
+        \item \textbf{Tolerâncias:} $\delta \in \{3, 5, 7, 11\}$, com $\delta=0$ de referência
+        \item \textbf{Tamanhos:} $n \in \{10^4, 10^5, 10^6\}$
+        \item \textbf{Entradas:} uniformes em $[0, 10^6)$, 5 sementes
+        \item \textbf{Versões:} serial e paralela (OpenMP, 4 threads)
+      \end{itemize}
+      \vspace{0.3em}
+      \small \textbf{Erro:} 600 execuções.
+      \textbf{Desempenho:} \texttt{perf} com $n=10^6$, 30 repetições,
+      núcleo fixo e ASLR desligado (1200 execuções).
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{block}{Validação}
+        Com $\delta = 0$, o vetor final é \alert{idêntico byte a byte} ao da versão
+        original nos 72 casos testados (4 algoritmos $\times$ 2 versões $\times$ 3 tamanhos
+        $\times$ 3 sementes).
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Métricas de erro da saída}
+  \begin{description}[\textbf{max\_err}]
+    \item[\textbf{rem}] elementos a remover para o resto ficar ordenado: $n$ menos a maior subsequência não decrescente (métrica de Chen et al.)
+    \item[\textbf{inv}] número de inversões: pares $i<j$ com $a_i > a_j$
+    \item[\textbf{max\_err}] o pior erro em valor: $\max_{i<j}\,(a_i - a_j)$
+  \end{description}
+  \vspace{0.8em}
+  \begin{block}{Por que max\_err}
+    É a grandeza que Ajtai et al.\ limitam: um bom algoritmo garante
+    $\text{max\_err} \le k\,\delta$ para um $k$ pequeno e \alert{fixo}.
+    Se $k$ cresce com $n$, o erro está se acumulando.
+  \end{block}
+  \vspace{0.3em}
+  {\footnotesize As métricas são das execuções seriais: com o mesmo $\delta$ e a mesma semente, serial e paralelo
+  produziram exatamente os mesmos valores.}
+\end{frame}
+
+\section{Resultados}
+
+\begin{frame}{Resultado principal: o pior erro em múltiplos de $\delta$}
+  \begin{columns}[c]
+    \begin{column}{0.56\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[uft, xmode=log, log basis x=10,
+            xlabel={tamanho da entrada $n$}, ylabel={$\text{max\_err} / \delta$},
+            ymin=0, ymax=7, xtick={10000,100000,1000000},
+            legend pos=north west]
+          \addplot[cquick, mark=*] table[x=n, y=quicksort] {dados/maxerr_por_n.dat};
+          \addplot[cmerge, mark=square*] table[x=n, y=mergesort] {dados/maxerr_por_n.dat};
+          \addplot[cshell, mark=triangle*] table[x=n, y=shellsort] {dados/maxerr_por_n.dat};
+          \addplot[cheap, mark=diamond*] table[x=n, y=heapsort] {dados/maxerr_por_n.dat};
+          \legend{quicksort, mergesort, shellsort, heapsort}
+        \end{axis}
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \begin{itemize}
+        \item \textbf{Quicksort} trava em $3\delta$ a partir de $n = 10^5$
+        \item Os outros três \alert{crescem com $n$}: de $2\delta$ até $5$ a $6\delta$
+        \item O acúmulo de erro descrito pelo Ajtai, observado na prática
+      \end{itemize}
+      \vspace{0.4em}
+      {\scriptsize Pior caso entre 5 sementes e $\delta \in \{3,5,7,11\}$.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{O pior erro, em detalhe}
+  \begin{center}
+    \begin{tabular}{lccc}
+      \toprule
+      & \multicolumn{3}{c}{$\text{max\_err}/\delta$ (faixa entre os quatro $\delta$)} \\
+      \cmidrule(lr){2-4}
+      Algoritmo & $n = 10^4$ & $n = 10^5$ & $n = 10^6$ \\
+      \midrule
+      Quicksort & 1{,}0 -- 2{,}1 & \textbf{3{,}0} & \textbf{3{,}0} \\
+      Mergesort & 1{,}7 -- 2{,}0 & 2{,}8 -- 3{,}9 & 5{,}0 -- 5{,}4 \\
+      Shellsort & 2{,}0 & 3{,}0 -- 3{,}7 & 5{,}0 -- 6{,}0 \\
+      Heapsort  & 1{,}3 -- 2{,}0 & 2{,}7 -- 3{,}6 & 5{,}0 -- 5{,}6 \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \vspace{0.8em}
+  \begin{itemize}
+    \item Mesmo mecanismo que Chen et al.\ apontam para o mergesort: as fusões
+          sucessivas propagam o erro; o particionamento do quicksort o confina
+    \item Shellsort e heapsort também movem elementos por longas distâncias com
+          base em comparações já imprecisas
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Desordem pela métrica Rem}
+  \begin{columns}[c]
+    \begin{column}{0.56\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[uft, xlabel={$\delta$}, ylabel={Rem (\% de $n$)},
+            xtick={3,5,7,11}, ymin=35, ymax=72, legend pos=south east]
+          \addplot[cquick, mark=*] table[x=delta, y=quicksort] {dados/rem_n1000000.dat};
+          \addplot[cmerge, mark=square*] table[x=delta, y=mergesort] {dados/rem_n1000000.dat};
+          \addplot[cshell, mark=triangle*] table[x=delta, y=shellsort] {dados/rem_n1000000.dat};
+          \addplot[cheap, mark=diamond*] table[x=delta, y=heapsort] {dados/rem_n1000000.dat};
+          \legend{quicksort, mergesort, shellsort, heapsort}
+        \end{axis}
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \begin{itemize}
+        \item $n = 10^6$, média de 5 sementes
+        \item Quicksort de novo o menos desordenado: \alert{40\% contra 47\%} com $\delta = 3$
+        \item Os outros três ficam praticamente sobrepostos
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Cuidado: Rem depende da densidade dos dados}
+  \begin{columns}[c]
+    \begin{column}{0.5\textwidth}
+      \begin{center}
+        \small
+        \begin{tabular}{lccc}
+          \toprule
+          & \multicolumn{3}{c}{Rem do quicksort} \\
+          \cmidrule(lr){2-4}
+          $\delta$ & $n=10^4$ & $n=10^5$ & $n=10^6$ \\
+          \midrule
+          3  & 1{,}5\% & 12\% & 40\% \\
+          11 & 5{,}2\% & 30\% & 60\% \\
+          \bottomrule
+        \end{tabular}
+      \end{center}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{itemize}
+        \item Valores em $[0, 10^6)$: com $n = 10^6$, o espaçamento médio entre vizinhos é 1
+        \item Cada elemento tem $\approx 2\delta$ vizinhos dentro da zona cega
+        \item O que importa é \alert{$\delta$ em relação ao espaçamento}, não $\delta$ sozinho
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{0.8em}
+  \begin{alertblock}{Rem alto não significa saída ruim}
+    Rem de 60\% parece um desastre, mas o pior erro é de 33 numa faixa de $10^6$.
+    O modelo do Ajtai gera muitos erros pequenos; Rem foi pensado para poucos erros grandes (Chen).
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Desempenho: tempo de execução}
+  \begin{columns}[c]
+    \begin{column}{0.56\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[uft, xlabel={$\delta$}, ylabel={tempo vs.\ $\delta=0$ (\%)},
+            xtick={3,5,7,11}, ymin=-8, ymax=8, legend pos=south west,
+            legend columns=2]
+          \addplot[cquick, mark=*] table[x=delta, y=quicksort] {dados/perf_time_serial.dat};
+          \addplot[cmerge, mark=square*] table[x=delta, y=mergesort] {dados/perf_time_serial.dat};
+          \addplot[cshell, mark=triangle*] table[x=delta, y=shellsort] {dados/perf_time_serial.dat};
+          \addplot[cheap, mark=diamond*] table[x=delta, y=heapsort] {dados/perf_time_serial.dat};
+          \addplot[uftcinza!60, dashed, thin, mark=none, forget plot] coordinates {(3,0) (11,0)};
+          \legend{quicksort, mergesort, shellsort, heapsort}
+        \end{axis}
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \begin{itemize}
+        \item Serial, $n = 10^6$, mediana de 30 repetições com \texttt{perf}
+        \item Quanto maior $\delta$, \alert{mais rápido}: quicksort $-5{,}4\%$,
+              mergesort $-3{,}7\%$, shellsort $-3{,}2\%$ com $\delta = 11$
+        \item \textbf{Heapsort} é a exceção: cerca de $+3\%$ para qualquer $\delta > 0$
+        \item Paralelo (4 threads): mesmo padrão, até $-7\%$
+      \end{itemize}
+      \vspace{0.3em}
+      {\scriptsize Variação entre repetições abaixo de 1\% (heapsort: até 4\%).}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Por que fica mais rápido: menos trabalho}
+  \begin{columns}[c]
+    \begin{column}{0.56\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[uft, xlabel={$\delta$}, ylabel={instruções vs.\ $\delta=0$ (\%)},
+            xtick={3,5,7,11}, ymin=-14, ymax=2, legend pos=south west,
+            legend columns=2]
+          \addplot[cquick, mark=*] table[x=delta, y=quicksort] {dados/perf_instructions_serial.dat};
+          \addplot[cmerge, mark=square*] table[x=delta, y=mergesort] {dados/perf_instructions_serial.dat};
+          \addplot[cshell, mark=triangle*] table[x=delta, y=shellsort] {dados/perf_instructions_serial.dat};
+          \addplot[cheap, mark=diamond*] table[x=delta, y=heapsort] {dados/perf_instructions_serial.dat};
+          \legend{quicksort, mergesort, shellsort, heapsort}
+        \end{axis}
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \begin{itemize}
+        \item Na zona cega o comparador responde ``iguais'' e o algoritmo
+              \alert{não troca}: menos movimentos de dados
+        \item Quicksort: até $-12\%$ de instruções, porque também deixa de ordenar
+              a partição do meio quando não distingue os pivôs
+        \item Heapsort: instruções iguais, mas $+4\%$ de ciclos e até $+10\%$
+              de \emph{cache misses}
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{0.4em}
+  \begin{alertblock}{Custo e benefício}
+    O quicksort é ao mesmo tempo o mais preciso ($3\delta$) e o que mais ganha em tempo.
+  \end{alertblock}
+\end{frame}
+
+\section{Conclusões}
+
+\begin{frame}{Conclusões}
+  \begin{enumerate}
+    \item Com comparador impreciso, \alert{quicksort mantém o erro limitado} ($3\delta$),
+          enquanto mergesort, shellsort e heapsort \alert{acumulam} erro com $n$
+    \item O padrão é o mesmo que Chen et al.\ observaram com memória aproximada,
+          agora com o modelo de imprecisão do Ajtai
+    \item Rem é uma métrica enganosa para este modelo; o pior erro
+          ($\text{max\_err}/\delta$) descreve melhor o comportamento
+    \item $\delta$ precisa ser interpretado em relação à densidade dos dados
+    \item A tolerância \alert{reduz o tempo} (até $5{,}4\%$ serial e $7{,}3\%$ paralelo) em
+          quicksort, mergesort e shellsort; o heapsort fica mais lento
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{Referências}
+  \small
+  \begin{itemize}
+    \item[{[1]}] M. Ajtai, V. Feldman, A. Hassidim, J. Nelson.
+      \emph{Sorting and Selection with Imprecise Comparisons}.
+      ACM Transactions on Algorithms, 12(2), 2016.
+    \item[{[2]}] S. Chen, S. Jiang, B. He, X. Tang.
+      \emph{A Study of Sorting Algorithms on Approximate Memory}.
+      Proc.\ ACM SIGMOD, 2016.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[noframenumbering]{}
+  \vfill
+  \begin{beamercolorbox}[wd=\textwidth,sep=1em,center]{title}
+    {\Huge Obrigado!}
+  \end{beamercolorbox}
+  \vspace{1em}
+  \begin{center}
+    Rafael Soares\\[0.3em]
+    {\footnotesize Universidade Federal do Tocantins}
+  \end{center}
+  \vfill
+\end{frame}
+
+\end{document}

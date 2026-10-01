@@ -1,0 +1,5 @@
+delta quicksort mergesort shellsort heapsort
+3 1.49 1.47 1.39 1.43
+5 2.44 2.43 2.39 2.45
+7 3.35 3.29 3.35 3.35
+11 5.17 5.06 5.17 5.14

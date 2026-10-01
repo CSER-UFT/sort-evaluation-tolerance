@@ -1,0 +1,6 @@
+results/tolerance/perf/results/
+results/tolerance/perf/bin/
+results/tolerance/perf/log_*.txt
+__pycache__/
+*_serial
+*_parallel
